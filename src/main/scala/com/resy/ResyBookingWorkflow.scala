@@ -19,6 +19,8 @@ class ResyBookingWorkflow(resyClient: ResyClient, resDetails: ReservationDetails
     logger.info("(҂‾ ▵‾)︻デ═一 (˚▽˚’!)/")
     logger.info(s"Attempting to snipe reservation")
 
+    logger.info("Res details: " + resDetails)
+
     val maybeConfigId = resyClient.findReservations(
       date         = resDetails.date,
       partySize    = resDetails.partySize,
@@ -28,6 +30,7 @@ class ResyBookingWorkflow(resyClient: ResyClient, resDetails: ReservationDetails
 
     maybeConfigId match {
       case Success(configId) =>
+        logger.info("Maybe config id: " + configId)
         val maybeResyTokenResp = snipeReservation(resyClient, resDetails, configId)
 
         maybeResyTokenResp match {

@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import com.resy.ResyApi.{sendGetRequest, sendPostRequest}
 import org.apache.logging.log4j.scala.Logging
 import play.api.libs.ws.WSBodyWritables.writeableOf_String
+import play.api.libs.ws.{DefaultWSProxyServer, WSProxyServer}
 import play.api.libs.ws.ahc.AhcWSClient
 
 import java.net.URLEncoder
@@ -86,11 +87,35 @@ object ResyApi extends Logging {
       s"https://$baseUrl?${stringifyQueryParams(queryParams)}"
 
     logger.debug(s"URL Request: $url")
+    val proxyServer: WSProxyServer = DefaultWSProxyServer("103.113.71.230", 3128, Option("https"))
 
-    ws.url(url)
-      .withHttpHeaders(createHeaders(resyKeys): _*)
-      .get
-      .map(_.body)(system.dispatcher)
+    try {
+      ws.url(url)
+        .withProxyServer(proxyServer)
+        .withHttpHeaders(
+          createHeaders(resyKeys) ++ Seq(
+            "Origin"  -> "https://widgets.resy.com",
+            "Referer" -> "https://widgets.resy.com/",
+            "User-Agent" -> "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+            "Accept"          -> "application/json, text/plain, */*",
+            "Accept-Encoding" -> "gzip, deflate, br",
+            "Accept-Language" -> "en-US,en;q=0.9",
+            "Cache-Control"   -> "no-cache",
+            "Pragma"          -> "no-cache",
+            "Sec-Fetch-Dest"  -> "empty",
+            "Sec-Fetch-Mode"  -> "cors",
+            "Sec-Fetch-Site"  -> "same-site"
+          ): _*
+        )
+        .get
+        .map(_.body)(system.dispatcher)
+    } catch {
+      case e: Exception =>
+        // Handle exception here
+        println(e.getMessage)
+        logger.error(e.getMessage)
+        throw e
+    }
   }
 
   private def sendPostRequest(
@@ -104,12 +129,18 @@ object ResyApi extends Logging {
     logger.debug(s"URL Request: $url")
     logger.debug(s"Post Params: $post")
 
+    val proxyServer: WSProxyServer = DefaultWSProxyServer("103.113.71.230", 3128, Option("https"))
+
     ws.url(url)
+      .withProxyServer(proxyServer)
       .withHttpHeaders(
         createHeaders(resyKeys) ++ Seq(
           "Content-Type" -> "application/x-www-form-urlencoded",
           "Origin"       -> "https://widgets.resy.com",
-          "Referer"      -> "https://widgets.resy.com/"
+          "Referer"      -> "https://widgets.resy.com/",
+          "User-Agent" -> "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+          "Accept-Language" -> "en-US,en;q=0.9",
+          "Accept-Encoding" -> "gzip, deflate, br"
         ): _*
       )
       .post(post)

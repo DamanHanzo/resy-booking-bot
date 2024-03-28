@@ -61,13 +61,12 @@ class ResyClient(resyApi: ResyApi) extends Logging {
     *   The paymentMethodId and the bookingToken of the reservation
     */
   def getReservationDetails(configId: String, date: String, partySize: Int): Try[BookingDetails] = {
+    logger.info("Config Id: " + configId)
     val bookingDetailsResp = Try {
       val response = Await.result(
         awaitable = resyApi.getReservationDetails(configId, date, partySize),
-        atMost    = 5 seconds
+        atMost    = 90 seconds
       )
-
-      logger.debug(s"URL Response: $response")
 
       val resDetails = Json.parse(response)
 
@@ -113,10 +112,10 @@ class ResyClient(resyApi: ResyApi) extends Logging {
     val resyTokenResp = Try {
       val response = Await.result(
         awaitable = resyApi.postReservation(paymentMethodId, bookToken),
-        atMost    = 10 seconds
+        atMost    = 90 seconds
       )
 
-      logger.debug(s"URL Response: $response")
+      logger.info(s"URL Response: $response")
 
       // Searching this JSON structure...
       // {"resy_token": "RESY_TOKEN", ...}
@@ -152,7 +151,7 @@ class ResyClient(resyApi: ResyApi) extends Logging {
     val reservationTimesResp: Try[ReservationMap] = Try {
       val response = Await.result(
         awaitable = resyApi.getReservations(date, partySize, venueId),
-        atMost    = 5 seconds
+        atMost    = 90 seconds
       )
 
       logger.debug(s"URL Response: $response")
