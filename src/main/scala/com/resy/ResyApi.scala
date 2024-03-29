@@ -4,8 +4,10 @@ import akka.actor.ActorSystem
 import com.resy.ResyApi.{sendGetRequest, sendPostRequest}
 import org.apache.logging.log4j.scala.Logging
 import play.api.libs.ws.WSBodyWritables.writeableOf_String
-import play.api.libs.ws.{DefaultWSProxyServer, WSProxyServer}
 import play.api.libs.ws.ahc.AhcWSClient
+import play.api.libs.ws.{DefaultWSProxyServer, WSProxyServer}
+import pureconfig.generic.auto._
+import pureconfig.{ConfigObjectSource, ConfigSource}
 
 import java.net.URLEncoder
 import scala.concurrent.Future
@@ -78,6 +80,12 @@ object ResyApi extends Logging {
   implicit private val system: ActorSystem = ActorSystem()
   private val ws                           = AhcWSClient()
 
+  val resyConfig: ConfigObjectSource = ConfigSource.resources("resyConfig.conf")
+  private val proxyConfig            = resyConfig.at("proxyConfig").loadOrThrow[ProxyConfig]
+
+  private val proxyServer: WSProxyServer =
+    DefaultWSProxyServer(proxyConfig.host, proxyConfig.port, Option("https"))
+
   private def sendGetRequest(
     resyKeys: ResyKeys,
     baseUrl: String,
@@ -87,11 +95,14 @@ object ResyApi extends Logging {
       s"https://$baseUrl?${stringifyQueryParams(queryParams)}"
 
     logger.debug(s"URL Request: $url")
-    val proxyServer: WSProxyServer = DefaultWSProxyServer("103.113.71.230", 3128, Option("https"))
 
     try {
-      ws.url(url)
-        .withProxyServer(proxyServer)
+      val wSRequest = ws.url(url)
+      if (proxyConfig.enabled) {
+        logger.info(s"Using proxy server: $proxyServer")
+        wSRequest.withProxyServer(proxyServer)
+      }
+      wSRequest
         .withHttpHeaders(
           createHeaders(resyKeys) ++ Seq(
             "Origin"  -> "https://widgets.resy.com",
@@ -129,10 +140,12 @@ object ResyApi extends Logging {
     logger.debug(s"URL Request: $url")
     logger.debug(s"Post Params: $post")
 
-    val proxyServer: WSProxyServer = DefaultWSProxyServer("103.113.71.230", 3128, Option("https"))
-
-    ws.url(url)
-      .withProxyServer(proxyServer)
+    val request = ws.url(url)
+    if (proxyConfig.enabled) {
+      logger.info(s"Using proxy server: $proxyServer")
+      request.withProxyServer(proxyServer)
+    }
+    request
       .withHttpHeaders(
         createHeaders(resyKeys) ++ Seq(
           "Content-Type" -> "application/x-www-form-urlencoded",

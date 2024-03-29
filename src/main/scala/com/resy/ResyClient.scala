@@ -3,6 +3,8 @@ package com.resy
 import org.apache.logging.log4j.scala.Logging
 import org.joda.time.DateTime
 import play.api.libs.json.{JsArray, JsValue, Json}
+import pureconfig.generic.auto._
+import pureconfig.{ConfigObjectSource, ConfigSource}
 
 import scala.annotation.tailrec
 import scala.concurrent.Await
@@ -14,6 +16,9 @@ class ResyClient(resyApi: ResyApi) extends Logging {
 
   private type ReservationMap = Map[String, TableTypeMap]
   private type TableTypeMap   = Map[String, String]
+
+  val resyConfig: ConfigObjectSource = ConfigSource.resources("resyConfig.conf")
+  private val retryConfig = resyConfig.at("retryPolicy").loadOrThrow[RetryPolicy]
 
   import ResyClientErrorMessages._
 
@@ -29,8 +34,6 @@ class ResyClient(resyApi: ResyApi) extends Logging {
     * @param resTimeTypes
     *   Priority list of reservation times and table types. Time is in military time HH:MM:SS
     *   format.
-    * @param millisToRetry
-    *   Optional parameter for how long to try to find a reservations in milliseconds
     * @return
     *   configId which is the unique identifier for the reservation
     */
@@ -39,14 +42,13 @@ class ResyClient(resyApi: ResyApi) extends Logging {
     partySize: Int,
     venueId: Int,
     resTimeTypes: Seq[ReservationTimeType],
-    millisToRetry: Long = (10 seconds).toMillis
   ): Try[String] =
     retryFindReservations(
       date,
       partySize,
       venueId,
       resTimeTypes,
-      millisToRetry,
+      retryConfig.retryInterval * 1000,
       DateTime.now.getMillis
     )
 
@@ -166,10 +168,13 @@ class ResyClient(resyApi: ResyApi) extends Logging {
       )
     }
 
+    var maxRetries = retryConfig.maxRetries
+
     reservationTimesResp match {
       case Success(reservationMap) if reservationMap.nonEmpty =>
         findReservationTime(reservationMap, resTimeTypes)
-      case _ if millisToRetry > DateTime.now.getMillis - dateTimeStart =>
+      case _ if millisToRetry > DateTime.now.getMillis - dateTimeStart && maxRetries > 0 =>
+        maxRetries -= 1
         retryFindReservations(date, partySize, venueId, resTimeTypes, millisToRetry, dateTimeStart)
       case _ =>
         logger.info("Missed the shot!")

@@ -2,6 +2,10 @@ package com.resy
 
 final case class ResyKeys(apiKey: String, authToken: String)
 
+final case class ProxyConfig(enabled: Boolean, host: String, port: Int)
+
+final case class RetryPolicy(maxRetries: Int, retryInterval: Int)
+
 final case class ReservationDetails(
   date: String,
   partySize: Int,
